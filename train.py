@@ -44,16 +44,18 @@ def train_one_epoch(
     epoch_start_time = time.time()
     tokens_seen = 0
 
-    pbar = tqdm(
-    total=STEPS_PER_EPOCH,
-    desc=f"Epoch {epoch+1}/{EPOCHS}",
-    dynamic_ncols=True,
-    leave=True
-)
+    for step, batch in enumerate(
+    tqdm(
+        dataloader,
+        total=STEPS_PER_EPOCH,
+        desc=f"Epoch {epoch+1}/{EPOCHS}",
+        dynamic_ncols=True,
+        leave=True
+    )
+):
+    if step >= STEPS_PER_EPOCH:
+        break
 
-    for step, batch in enumerate(dataloader):
-        if step >= STEPS_PER_EPOCH:
-            break
 
         input_ids = batch["input_ids"].to(device, non_blocking=True)
         targets = batch["targets"].to(device, non_blocking=True)
@@ -94,9 +96,8 @@ def train_one_epoch(
             "tok/s": f"{tok_per_sec/1000:.1f}k",
             "ETA(h)": f"{eta_hours:5.2f}"
         })
-        pbar.update(1)
+        
     
-    pbar.close()
 
     return global_step
 
