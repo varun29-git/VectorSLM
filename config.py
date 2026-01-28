@@ -14,7 +14,7 @@ DROPOUT = 0.1
 # ============================================================
 
 SEQ_LEN = 1024
-BATCH_SIZE = 32         # Micro-batch (aggressive for A100)
+BATCH_SIZE = 4         # Micro-batch (aggressive for A100)
 GRAD_ACCUM_STEPS = 4    # Effective Batch = 128 (approx 131k tokens/step)
 
 # ============================================================
@@ -36,5 +36,5 @@ WEIGHT_DECAY = 0.1
 # ============================================================
 
 MODEL_FOLDER = "checkpoints"
-PRELOAD = None
+PRELOAD = None      
 VAL_SPLIT = 0.05
