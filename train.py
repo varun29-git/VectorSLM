@@ -12,15 +12,11 @@ from config import *
 from model import build_llama
 from dataset import StreamingLanguageModelDataset
 
-# ==============================================================================
-# CONFIGURATION CONSTANTS (STRICT CURRICULUM)
-# ==============================================================================
-TOKEN_CAP_PER_PHASE = 500_000  # Reduced for verification
+ESTIMATED_TOTAL_TOKENS = 2_950_000_000
 
-# Progressive LR Decay
-LR_PHASE_1 = 3e-4  # High (Bootstrapping)
-LR_PHASE_2 = 1e-4  # Medium (Structure)
-LR_PHASE_3 = 5e-5  # Low (Generalization)
+LR_PHASE_1 = 3e-4  
+LR_PHASE_2 = 1e-4  
+LR_PHASE_3 = 5e-5  
 
 def get_model(vocab_size):
     return build_llama(
@@ -33,7 +29,7 @@ def get_model(vocab_size):
         dropout=DROPOUT
     )
 
-def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, target_lr, vocab_size):
+def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, target_lr, vocab_size, max_tokens=None, global_tracker=None):
     device = next(model.parameters()).device
     loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
     
@@ -46,7 +42,10 @@ def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, 
     print(f"Dataset: {dataset_name}")
     print(f"Epochs: {num_epochs} (Logical Passes)")
     print(f"Learning Rate: {target_lr}")
-    print(f"Token Cap: {TOKEN_CAP_PER_PHASE:,}")
+    if max_tokens:
+        print(f"Token Cap: {max_tokens:,}")
+    else:
+        print("Token Cap: None (Full Dataset Phase)")
     print("=" * 80)
 
     total_phase_tokens = 0
@@ -56,7 +55,6 @@ def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, 
         
         # Load Dataset Stream (Restarted each epoch)
         try:
-            # Handle potential dataset loading errors (e.g. bookcorpus vs bookcorpus/bookcorpus)
             if dataset_name == "bookcorpus":
                 ds = load_dataset(dataset_name, split="train", streaming=True, trust_remote_code=True)
             else:
@@ -88,11 +86,17 @@ def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, 
             
             # --- TOKEN ACCOUNTING ---
             batch_tokens = input_ids.numel()
-            if total_phase_tokens + batch_tokens > TOKEN_CAP_PER_PHASE:
-                print(f"\n[STOP] Token Cap Reached for {phase_name}: {total_phase_tokens + batch_tokens:,} > {TOKEN_CAP_PER_PHASE:,}")
+            
+            # Phase Cap Check
+            if max_tokens is not None and (total_phase_tokens + batch_tokens > max_tokens):
+                print(f"\n[STOP] Token Cap Reached for {phase_name}: {total_phase_tokens + batch_tokens:,} > {max_tokens:,}")
                 return  # End Phase Immediately
             
             total_phase_tokens += batch_tokens
+            
+            # Global Tracker Update
+            if global_tracker:
+                global_tracker['tokens_seen'] += batch_tokens
 
             # --- OPTIMIZATION STEP ---
             optimizer.zero_grad(set_to_none=True)
@@ -113,10 +117,21 @@ def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, 
             # --- STATS ---
             loss_window.append(loss.item())
             avg_loss = sum(loss_window) / len(loss_window)
+            
+            # Global ETA Calculation
+            eta_str = "??"
+            if global_tracker:
+                elapsed = time.time() - global_tracker['start_time']
+                rate = global_tracker['tokens_seen'] / max(elapsed, 1e-6)
+                remaining = ESTIMATED_TOTAL_TOKENS - global_tracker['tokens_seen']
+                eta_seconds = remaining / max(rate, 1e-6)
+                eta_str = f"{int(eta_seconds//3600)}h {int((eta_seconds%3600)//60)}m"
+
             pbar.set_postfix({
                 "loss": f"{avg_loss:.4f}",
                 "lr": f"{target_lr:.1e}",
-                "Tok": f"{total_phase_tokens/1e6:.2f}M"
+                "Tok": f"{total_phase_tokens/1e6:.2f}M",
+                "G-ETA": eta_str
             })
             
         print(f"Epoch {epoch+1} Complete. Tokens so far: {total_phase_tokens:,}")
@@ -133,10 +148,10 @@ def train():
     
     scaler = torch.cuda.amp.GradScaler(enabled=(device.type == 'cuda'))
     
-    # Initialize Optimizer (Maintains state across phases)
+    # Initialize Optimizer
     optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=LR_PHASE_1,  # Start with Phase 1 LR
+        lr=LR_PHASE_1,
         weight_decay=0.1,
         betas=(0.9, 0.95),
         eps=1e-8
@@ -144,10 +159,15 @@ def train():
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model Parameters: {n_params:,}")
+    
+    # Global Progress Tracker
+    global_tracker = {
+        'start_time': time.time(),
+        'tokens_seen': 0
+    }
 
-    # ==========================================================================
-    # PHASE 1: TinyStories (Bootstrapping) - 2 Epochs, High LR
-    # ==========================================================================
+    # PHASE 1
+
     train_phase(
         model=model,
         optimizer=optimizer,
@@ -156,32 +176,32 @@ def train():
         phase_name="Phase 1 (TinyStories)",
         num_epochs=2,
         target_lr=LR_PHASE_1,
-        vocab_size=vocab_size
+        vocab_size=vocab_size,
+        max_tokens=None, # Use Full Dataset
+        global_tracker=global_tracker
     )
     
-    # Save Checkpoint after Phase 1
     torch.save(model.state_dict(), f"{MODEL_FOLDER}/checkpoint_phase1.pt")
 
-    # ==========================================================================
-    # PHASE 2: BookCorpus (Structure) - 2 Epochs, Medium LR
-    # ==========================================================================
+    # PHASE 2
+
     train_phase(
         model=model,
         optimizer=optimizer,
         scaler=scaler,
-        dataset_name="bookcorpus", 
+        dataset_name="rojagtap/bookcorpus", 
         phase_name="Phase 2 (BookCorpus)",
         num_epochs=2,
         target_lr=LR_PHASE_2,
-        vocab_size=vocab_size
+        vocab_size=vocab_size,
+        max_tokens=None, # Use Full Dataset
+        global_tracker=global_tracker
     )
     
-    # Save Checkpoint after Phase 2
     torch.save(model.state_dict(), f"{MODEL_FOLDER}/checkpoint_phase2.pt")
 
-    # ==========================================================================
-    # PHASE 3: OpenWebText (Generalization) - 1 Epoch, Low LR, Truncated to Cap
-    # ==========================================================================
+    # PHASE 3
+    
     train_phase(
         model=model,
         optimizer=optimizer,
@@ -190,12 +210,18 @@ def train():
         phase_name="Phase 3 (OpenWebText)",
         num_epochs=1,
         target_lr=LR_PHASE_3,
-        vocab_size=vocab_size
+        vocab_size=vocab_size,
+        max_tokens=2_000_000_000, # CAP AT 2 BILLION
+        global_tracker=global_tracker
     )
     
-    # Final Save
     torch.save(model.state_dict(), f"{MODEL_FOLDER}/model_final.pt")
-    print("\nTRAINING COMPLETE.")
+    
+    total_time = time.time() - global_tracker['start_time']
+    print("\n" + "=" * 80)
+    print(f"TRAINING COMPLETE. Total Time: {total_time/3600:.2f} hours")
+    print(f"Total Tokens Processed: {global_tracker['tokens_seen']:,}")
+    print("=" * 80)
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
