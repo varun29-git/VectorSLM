@@ -53,9 +53,8 @@ def train_one_epoch(
         leave=True
     )
 ):
-    if step >= STEPS_PER_EPOCH:
-        break
-
+        if step >= STEPS_PER_EPOCH:
+            break
 
         input_ids = batch["input_ids"].to(device, non_blocking=True)
         targets = batch["targets"].to(device, non_blocking=True)
