@@ -60,11 +60,16 @@ def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, 
             else:
                 ds = load_dataset(dataset_name, split="train", streaming=True)
             
-            # Show Sample
+            # Show Sample (from middle to avoid boilerplate)
             print(f"\n[Sample from {dataset_name}]")
             try:
                 sample_item = next(iter(ds))
-                print(f"{sample_item['text'][:300]}...\n")
+                text = sample_item['text']
+                mid_point = len(text) // 2
+                # Ensure we have enough text, else take what's available
+                start = max(0, mid_point - 150)
+                end = min(len(text), mid_point + 150)
+                print(f"...{text[start:end]}...\n")
             except Exception as e:
                 print(f"Could not fetch sample: {e}")
 
@@ -190,7 +195,7 @@ def train():
         num_epochs=1,
         target_lr=LR_PHASE_1,
         vocab_size=vocab_size,
-        max_tokens=100, # CAP AT 100 TOKENS (TESTING)
+        max_tokens=None, # Use Full Dataset (Reverted Testing Cap)
         global_tracker=global_tracker
     )
     

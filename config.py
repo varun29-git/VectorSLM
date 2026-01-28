@@ -1,74 +1,35 @@
-# # ============================================================
-# # MODEL SIZE 
-# # ============================================================
-
-# D_MODEL = 1024          
-# N_LAYERS = 24           
-# N_Q_HEADS = 16          
-# N_KV_HEADS = 4          
-# D_FF = 4096             
-# DROPOUT = 0.0           
-
-# # ============================================================
-# # SEQUENCE / BATCH 
-# # ============================================================
-
-# SEQ_LEN = 1024         
-# BATCH_SIZE = 64        
-
-# # ============================================================
-# # TRAINING SCHEDULE 
-# # ============================================================
-
-# EPOCHS = 3              
-# STEPS_PER_EPOCH = 50_000
-
-# # ============================================================
-# # OPTIMIZATION
-# # ============================================================
-
-# LR = 3e-4               
-# WEIGHT_DECAY = 0.1      
-
-# # ============================================================
-# # SYSTEM / INFRA
-# # ============================================================
-
-# MODEL_FOLDER = "checkpoints"
-# PRELOAD = None         
-# VAL_SPLIT = 0.0         
-
 # ============================================================
-# MODEL SIZE 
+# MODEL SIZE (Scaled for A100 20GB ~400M Params)
 # ============================================================
 
-D_MODEL = 512
-N_LAYERS = 12
-N_Q_HEADS = 8
-N_KV_HEADS = 2
-D_FF = 2048
-DROPOUT = 0.1
+D_MODEL = 1024          
+N_LAYERS = 24           
+N_Q_HEADS = 16          
+N_KV_HEADS = 8          # GQA (16 Q / 8 KV)
+D_FF = 4096             # 4x D_MODEL
+DROPOUT = 0.1           
 
 # ============================================================
 # SEQUENCE / BATCH 
 # ============================================================
 
-SEQ_LEN = 512
-BATCH_SIZE = 8       # micro-batch
-GRAD_ACCUM_STEPS = 16   # effective batch = 64
+SEQ_LEN = 1024
+BATCH_SIZE = 32         # Micro-batch (aggressive for A100)
+GRAD_ACCUM_STEPS = 4    # Effective Batch = 128 (approx 131k tokens/step)
 
 # ============================================================
 # TRAINING SCHEDULE 
 # ============================================================
 
-EPOCHS = 4
+EPOCHS = 1              # Controlled by train.py phases (Logical)
+STEPS_PER_EPOCH = 2     # Ignored by token-budget loop
 
 # ============================================================
 # OPTIMIZATION
 # ============================================================
 
-LR = 5e-4
-WEIGHT_DECAY = 0.1
+LR = 3e-4               # Base LR (Controlled by train.py phases)
+WEIGHT_DECAY = 0.1      
 
 # ============================================================
 # SYSTEM / INFRA
@@ -76,4 +37,4 @@ WEIGHT_DECAY = 0.1
 
 MODEL_FOLDER = "checkpoints"
 PRELOAD = None
-VAL_SPLIT = 0.05    
+VAL_SPLIT = 0.05
