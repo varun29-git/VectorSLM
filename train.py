@@ -211,7 +211,7 @@ def train():
         num_epochs=1,
         target_lr=LR_PHASE_3,
         vocab_size=vocab_size,
-        max_tokens=2_000_000_000, # CAP AT 2 BILLION
+        max_tokens=1_000_000_000, # CAP AT 1 BILLION
         global_tracker=global_tracker
     )
     
