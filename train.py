@@ -59,6 +59,15 @@ def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, 
                 ds = load_dataset(dataset_name, split="train", streaming=True, trust_remote_code=True)
             else:
                 ds = load_dataset(dataset_name, split="train", streaming=True)
+            
+            # Show Sample
+            print(f"\n[Sample from {dataset_name}]")
+            try:
+                sample_item = next(iter(ds))
+                print(f"{sample_item['text'][:300]}...\n")
+            except Exception as e:
+                print(f"Could not fetch sample: {e}")
+
         except Exception as e:
             print(f"Error loading dataset {dataset_name}: {e}")
             return
@@ -78,7 +87,10 @@ def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, 
 
         model.train()
         loss_window = deque(maxlen=50)
-        pbar = tqdm(dataloader, desc=f"{phase_name} E{epoch+1}", dynamic_ncols=True)
+        
+        # bar_format string to match user request: "Processing Epoch00: 100% ... [time, rate, loss]"
+        # We start with a standard format but customize descriptions.
+        pbar = tqdm(dataloader, desc=f"Processing Epoch{epoch:02d}", dynamic_ncols=True)
         
         for batch in pbar:
             input_ids = batch["input_ids"].to(device, non_blocking=True)
@@ -127,12 +139,8 @@ def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, 
                 eta_seconds = remaining / max(rate, 1e-6)
                 eta_str = f"{int(eta_seconds//3600)}h {int((eta_seconds%3600)//60)}m"
 
-            pbar.set_postfix({
-                "loss": f"{avg_loss:.4f}",
-                "lr": f"{target_lr:.1e}",
-                "Tok": f"{total_phase_tokens/1e6:.2f}M",
-                "G-ETA": eta_str
-            })
+            pbar.set_description(f"Processing Epoch{epoch:02d}")
+            pbar.set_postfix_str(f"loss:={avg_loss:.3f}, G-ETA={eta_str}")
             
         print(f"Epoch {epoch+1} Complete. Tokens so far: {total_phase_tokens:,}")
 
