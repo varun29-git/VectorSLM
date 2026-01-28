@@ -61,8 +61,8 @@ GRAD_ACCUM_STEPS = 16   # effective batch = 64
 # TRAINING SCHEDULE 
 # ============================================================
 
-EPOCHS = 1
-STEPS_PER_EPOCH = 2
+EPOCHS = 2
+STEPS_PER_EPOCH = 300
 
 # ============================================================
 # OPTIMIZATION
