@@ -12,7 +12,7 @@ from config import *
 from model import build_llama
 from dataset import StreamingLanguageModelDataset
 
-ESTIMATED_TOTAL_TOKENS = 2_970_000_000
+ESTIMATED_TOTAL_TOKENS = 1_655_000_000
 
 LR_PHASE_1 = 3e-4  
 LR_PHASE_2 = 1e-4  
@@ -152,8 +152,17 @@ def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, 
         model.train()
         loss_window = deque(maxlen=50)
         
+        # Calculate Total Batches for ETA
+        if max_tokens:
+            total_batches = max_tokens // (BATCH_SIZE * SEQ_LEN)
+        elif "TinyStories" in dataset_name:
+            total_batches = 470_000_000 // (BATCH_SIZE * SEQ_LEN)  # Approx 470M tokens
+        else:
+            total_batches = None
+
         pbar = tqdm(
             dataloader, 
+            total=total_batches,
             desc=f"Processing Epoch{epoch:02d}", 
             dynamic_ncols=True,
             bar_format="{desc}: {percentage:3.0f}%|{bar}| [{elapsed}<{remaining}, {rate_fmt}{postfix}]"
@@ -209,7 +218,7 @@ def train_phase(model, optimizer, scaler, dataset_name, phase_name, num_epochs, 
                 eta_seconds = remaining / max(rate, 1e-6)
                 eta_str = f"{int(eta_seconds//3600)}h {int((eta_seconds%3600)//60)}m"
 
-            pbar.set_description(f"Processing Epoch{epoch:02d}")
+            pbar.set_description(f"Processing Epoch{epoch:02d} | Global ETA: {eta_str} | Loss: {avg_loss:.4f}")
             
         print(f"Epoch {epoch+1} Complete. Tokens so far: {total_phase_tokens:,}")
         
@@ -257,8 +266,9 @@ def train():
         num_epochs=1,
         target_lr=LR_PHASE_1,
         vocab_size=vocab_size,
-        max_tokens=None, # Use Full Dataset (Reverted Testing Cap)
-        global_tracker=global_tracker
+        max_tokens=325_000_000, # Cap at 325M
+        global_tracker=global_tracker,
+        soft_cap=True
     )
     
     torch.save(model.state_dict(), f"{MODEL_FOLDER}/checkpoint_phase1.pt")
@@ -274,7 +284,7 @@ def train():
         num_epochs=1, # Soft Cap controls duration within epoch
         target_lr=LR_PHASE_2,
         vocab_size=vocab_size,
-        max_tokens=500_000_000, # SOFT CAP AT 500 MILLION
+        max_tokens=330_000_000, # SOFT CAP AT 330 MILLION
         global_tracker=global_tracker,
         soft_cap=True
     )
@@ -293,7 +303,7 @@ def train():
         num_epochs=2,
         target_lr=LR_PHASE_3,
         vocab_size=vocab_size,
-        max_tokens=1_000_000_000, # 1B per epoch 
+        max_tokens=500_000_000, # 500M per epoch (Total 1B) 
         global_tracker=global_tracker,
         soft_cap=True
     )
