@@ -15,7 +15,7 @@ import random
 import math
 
 ESTIMATED_TOTAL_TOKENS = 1_675_000_000
-LR_PHASE_1 = 2e-4
+LR_PHASE_1 = 3e-4
 
 # Constants for Schedule
 PHASE1_DURATION = 525_000_000
@@ -158,7 +158,7 @@ def train_mixed_phase_1(model, optimizer, scaler, vocab_size, global_tracker=Non
     total_phase_tokens = 0
     
     # Progress Bar
-    pbar = tqdm(total=total_duration // (BATCH_SIZE * SEQ_LEN), desc="P1", dynamic_ncols=True)
+    pbar = tqdm(total=total_duration // (BATCH_SIZE * SEQ_LEN), dynamic_ncols=True)
     
     model.train()
     loss_window = deque(maxlen=50)
@@ -268,7 +268,7 @@ def train_phase_2(model, optimizer, scaler, vocab_size, global_tracker=None):
     iter_ts = iter(dl_ts)
 
     total_phase_tokens = 0
-    pbar = tqdm(total=total_duration // (BATCH_SIZE * SEQ_LEN), desc="P2", dynamic_ncols=True)
+    pbar = tqdm(total=total_duration // (BATCH_SIZE * SEQ_LEN), dynamic_ncols=True)
     
     model.train()
     loss_window = deque(maxlen=50)
