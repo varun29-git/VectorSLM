@@ -28,6 +28,12 @@ logging.basicConfig(
     ]
 )
 
+# Suppress noise from third-party libraries
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.WARNING)
+logging.getLogger("fsspec").setLevel(logging.WARNING)
+logging.getLogger("datasets").setLevel(logging.WARNING)
+
 class ChinchillaScheduler:
     """
     Custom Scheduler for Chinchilla-Optimal Training Pipeline.
