@@ -232,7 +232,12 @@ def train_mixed_phase_1(model, optimizer, scaler, vocab_size, global_tracker=Non
              eta_seconds = remaining / max(rate, 1e-6)
              eta_str = f"{int(eta_seconds//3600)}h {int((eta_seconds%3600)//60)}m"
 
-        pbar.set_description(f"P1|TS{p_ts:.0%}|LR{current_lr:.1e}|ETA:{eta_str}|L{avg_loss:.2f}")
+        pbar.set_postfix({
+            "TS": f"{p_ts:.0%}",
+            "LR": f"{current_lr:.1e}",
+            "Loss": f"{avg_loss:.2f}",
+            "ETA": eta_str
+        })
 
     pbar.close()
     print(f"Phase 1 Complete. Tokens: {total_phase_tokens:,}")
@@ -331,7 +336,11 @@ def train_phase_2(model, optimizer, scaler, vocab_size, global_tracker=None):
              eta_seconds = remaining / max(rate, 1e-6)
              eta_str = f"{int(eta_seconds//3600)}h {int((eta_seconds%3600)//60)}m"
 
-        pbar.set_description(f"P2|LR{current_lr:.1e}|ETA:{eta_str}|L{avg_loss:.2f}")
+        pbar.set_postfix({
+            "LR": f"{current_lr:.1e}",
+            "Loss": f"{avg_loss:.2f}",
+            "ETA": eta_str
+        })
 
     pbar.close()
     print(f"Phase 2 Complete. Tokens: {total_phase_tokens:,}")
