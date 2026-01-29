@@ -158,7 +158,7 @@ def train_mixed_phase_1(model, optimizer, scaler, vocab_size, global_tracker=Non
     total_phase_tokens = 0
     
     # Progress Bar
-    pbar = tqdm(total=total_duration // (BATCH_SIZE * SEQ_LEN), desc="Phase 1", dynamic_ncols=True)
+    pbar = tqdm(total=total_duration // (BATCH_SIZE * SEQ_LEN), desc="P1", dynamic_ncols=True)
     
     model.train()
     loss_window = deque(maxlen=50)
@@ -235,7 +235,7 @@ def train_mixed_phase_1(model, optimizer, scaler, vocab_size, global_tracker=Non
         pbar.set_postfix({
             "TS": f"{p_ts:.0%}",
             "LR": f"{current_lr:.1e}",
-            "Loss": f"{avg_loss:.2f}",
+            "L": f"{avg_loss:.2f}",
             "ETA": eta_str
         })
 
@@ -268,7 +268,7 @@ def train_phase_2(model, optimizer, scaler, vocab_size, global_tracker=None):
     iter_ts = iter(dl_ts)
 
     total_phase_tokens = 0
-    pbar = tqdm(total=total_duration // (BATCH_SIZE * SEQ_LEN), desc="Phase 2", dynamic_ncols=True)
+    pbar = tqdm(total=total_duration // (BATCH_SIZE * SEQ_LEN), desc="P2", dynamic_ncols=True)
     
     model.train()
     loss_window = deque(maxlen=50)
@@ -338,7 +338,7 @@ def train_phase_2(model, optimizer, scaler, vocab_size, global_tracker=None):
 
         pbar.set_postfix({
             "LR": f"{current_lr:.1e}",
-            "Loss": f"{avg_loss:.2f}",
+            "L": f"{avg_loss:.2f}",
             "ETA": eta_str
         })
 
