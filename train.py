@@ -97,7 +97,7 @@ def validate(model, dataset_name, device, steps=50):
     return avg_val_loss
 
 
-def train_sequential(model, optimizer, scaler, vocab_size, global_tracker=None):
+def train_cosmopedia(model, optimizer, scaler, vocab_size, global_tracker=None):
     device = next(model.parameters()).device
     loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
     
@@ -109,20 +109,17 @@ def train_sequential(model, optimizer, scaler, vocab_size, global_tracker=None):
         print(f"CRITICAL: Failed to load tokenizer.json ({e})")
         return
 
-    PHASE1_TOKENS = 15_000_000
     TOTAL_TOKENS = TOTAL_TRAINING_TOKENS
+    print("\n" + "=" * 80)
+    print(f"STARTING TRAINING: Cosmopedia Only")
+    print(f"Goal: {TOTAL_TOKENS:,} tokens")
+    print("=" * 80)
     
-    # Initialize Datasets
-    print("\nLoading Datasets...")
-    # Phase 1: TinyStories
-    ds_ts = load_dataset("roneneldan/TinyStories", split="train", streaming=True)
-    dl_ts = DataLoader(StreamingLanguageModelDataset(ds_ts, SEQ_LEN, tokenizer), batch_size=BATCH_SIZE, num_workers=0)
-    
-    # Phase 2: Cosmopedia
+    # Initialize Dataset
+    print("\nLoading Cosmopedia (web_samples_v2)...")
     ds_cosmo = load_dataset("HuggingFaceTB/cosmopedia", "web_samples_v2", split="train", streaming=True)
     dl_cosmo = DataLoader(StreamingLanguageModelDataset(ds_cosmo, SEQ_LEN, tokenizer), batch_size=BATCH_SIZE, num_workers=0)
 
-    iter_ts = iter(dl_ts)
     iter_cosmo = iter(dl_cosmo)
 
     # Progress Bar
@@ -135,70 +132,10 @@ def train_sequential(model, optimizer, scaler, vocab_size, global_tracker=None):
     step = 0
     current_lr = 0.0
     
-    # --- PHASE 1: TinyStories (0 to 15M) ---
-    print("\n" + "=" * 80)
-    print(f"STARTING PHASE 1: TinyStories (Overfitting)")
-    print(f"Goal: {PHASE1_TOKENS:,} tokens")
-    print("=" * 80)
-    
-    while global_tracker['tokens_seen'] < PHASE1_TOKENS:
-        step += 1
-        
-        # LR Schedule (Global)
-        current_lr = get_lr(global_tracker['tokens_seen'])
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = current_lr
-
-        try:
-            batch = next(iter_ts)
-        except StopIteration:
-            iter_ts = iter(dl_ts)
-            batch = next(iter_ts)
-
-        input_ids = batch["input_ids"].to(device, non_blocking=True)
-        targets = batch["targets"].to(device, non_blocking=True)
-        
-        batch_tokens = input_ids.numel()
-        
-        # Train Step
-        with torch.autocast(device_type=device.type, dtype=torch.float16):
-            logits = model(input_ids)
-            loss = loss_fn(logits.view(-1, logits.size(-1)), targets.view(-1))
-
-        loss = loss / GRAD_ACCUM_STEPS
-        scaler.scale(loss).backward() # type: ignore
-
-        if step % GRAD_ACCUM_STEPS == 0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            scaler.step(optimizer)
-            scaler.update()
-            optimizer.zero_grad(set_to_none=True)
-        
-        # Updates
-        global_tracker['tokens_seen'] += batch_tokens
-        pbar.update(1)
-        
-        loss_window.append(loss.item() * GRAD_ACCUM_STEPS)
-        avg_loss = sum(loss_window) / len(loss_window)
-        
-        pbar.set_postfix({
-            "Phase": "TS",
-            "LR": f"{current_lr:.1e}",
-            "L": f"{avg_loss:.2f}"
-        })
-
-    print(f"\nPhase 1 Complete. Tokens: {global_tracker['tokens_seen']:,}")
-    
-    # --- PHASE 2: Cosmopedia (15M to 100M) ---
-    print("\n" + "=" * 80)
-    print(f"STARTING PHASE 2: Cosmopedia")
-    print(f"Goal: {TOTAL_TOKENS:,} tokens")
-    print("=" * 80)
-    
     while global_tracker['tokens_seen'] < TOTAL_TOKENS:
         step += 1
         
+        # LR Schedule
         current_lr = get_lr(global_tracker['tokens_seen'])
         for param_group in optimizer.param_groups:
             param_group['lr'] = current_lr
@@ -243,7 +180,6 @@ def train_sequential(model, optimizer, scaler, vocab_size, global_tracker=None):
         eta_str = f"{int(eta_seconds//3600)}h {int((eta_seconds%3600)//60)}m"
 
         pbar.set_postfix({
-            "Phase": "Cosmo",
             "LR": f"{current_lr:.1e}",
             "L": f"{avg_loss:.2f}",
             "ETA": eta_str
@@ -298,7 +234,7 @@ def train():
         'tokens_seen': 0
     }
 
-    train_sequential(
+    train_cosmopedia(
         model=model,
         optimizer=optimizer,
         scaler=scaler,

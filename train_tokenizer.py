@@ -9,19 +9,14 @@ def train_tokenizer():
     ds_ts = load_dataset("roneneldan/TinyStories", split="train", streaming=True)
     ds_cosmo = load_dataset("HuggingFaceTB/cosmopedia", "web_samples_v2", split="train", streaming=True)
 
-    # Create an iterator that yields text from both
+    # Create an iterator that yields text from Cosmopedia
     def batch_iterator(batch_size=1000):
         buffer = []
-        # Take 5000 examples from TS
-        print("Sampling TinyStories...")
-        for i, item in enumerate(ds_ts):
-            if i >= 5000: break
-            buffer.append(item['text'])
         
-        # Take 5000 examples from Cosmo
+        # Take 10000 examples from Cosmo
         print("Sampling Cosmopedia...")
         for i, item in enumerate(ds_cosmo):
-            if i >= 5000: break
+            if i >= 10000: break
             buffer.append(item['text'])
             
         print(f"Collected {len(buffer)} samples. Training tokenizer...")
