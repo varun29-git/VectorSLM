@@ -25,10 +25,10 @@ def verify():
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model Parameters: {n_params:,}")
     
-    # Expected: ~14M
-    # Embedding: 32000 * 256 = 8,192,000
+    # Expected: ~10.1M
+    # Embedding: 16384 * 256 = 4,194,304
     # Layers: ~6M
-    # Total roughly ~14M
+    # Total roughly ~10.1M
 
     
     print("\nVerifying Tokenizer & Dataset Loading...")
