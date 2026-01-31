@@ -4,11 +4,11 @@
 
 VOCAB_SIZE = 16384
 
-D_MODEL = 256
-N_LAYERS = 6
-N_Q_HEADS = 4
+D_MODEL = 384
+N_LAYERS = 8
+N_Q_HEADS = 6
 N_KV_HEADS = 2
-D_FF = 1024
+D_FF = 1536
 DROPOUT = 0.1
 
 # ============================================================
@@ -17,7 +17,7 @@ DROPOUT = 0.1
 
 SEQ_LEN = 1024
 BATCH_SIZE = 8
-GRAD_ACCUM_STEPS = 8
+GRAD_ACCUM_STEPS = 16
 
 # ============================================================
 # TRAINING SCHEDULE
@@ -29,9 +29,9 @@ EPOCHS = 1
 # OPTIMIZATION
 # ============================================================
 
-LR = 3e-4
+LR = 9e-4
                
-WEIGHT_DECAY = 0.1      
+WEIGHT_DECAY = 0.3      
 
 # ============================================================
 # SYSTEM 
