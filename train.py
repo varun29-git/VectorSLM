@@ -15,7 +15,7 @@ from dataset import StreamingLanguageModelDataset
 import random
 import math
 
-TOTAL_TRAINING_TOKENS = 500_000_000
+TOTAL_TRAINING_TOKENS = 1_000_000_000
 
 def get_lr(tokens_seen):
     # Simple Cosine Decay for 100M tokens
@@ -109,15 +109,12 @@ def train_sequential_phases(model, optimizer, scaler, vocab_size, global_tracker
         return
 
     # Phase Configs
-    # Total: 210M (Reduced by 30%)
-    # Phase 1: Cosmo (105M) --> 0 to 105M
-    # Phase 2: FW-Edu (63M) --> 105M to 168M
-    # Phase 3: Evol   (42M) --> 168M to 210M
+    # Total: 1B
     
     phases = [
-        {"name": "Cosmopedia (Knowledge)", "tokens": 250_000_000, "dataset_id": "HuggingFaceTB/cosmopedia", "subset": "web_samples_v2", "map_fn": None},
-        {"name": "FineWeb-Edu (Academic)", "tokens": 150_000_000, "dataset_id": "HuggingFaceFW/fineweb-edu", "subset": "sample-10BT", "map_fn": None},
-        {"name": "Evol-Instruct (Code)", "tokens": 100_000_000, "dataset_id": "nickrosh/Evol-Instruct-Code-80k-v1", "subset": None, "map_fn": lambda x: {"text": f"{x['instruction']}\n{x['output']}"}}
+        {"name": "Cosmopedia (Knowledge)", "tokens": 550_000_000, "dataset_id": "HuggingFaceTB/cosmopedia", "subset": "web_samples_v2", "map_fn": None},
+        {"name": "FineWeb-Edu (Academic)", "tokens": 300_000_000, "dataset_id": "HuggingFaceFW/fineweb-edu", "subset": "sample-10BT", "map_fn": None},
+        {"name": "Evol-Instruct (Code)", "tokens": 150_000_000, "dataset_id": "nickrosh/Evol-Instruct-Code-80k-v1", "subset": None, "map_fn": lambda x: {"text": f"{x['instruction']}\n{x['output']}"}}
     ]
 
     pbar = tqdm(total=TOTAL_TRAINING_TOKENS // (BATCH_SIZE * SEQ_LEN), dynamic_ncols=True)

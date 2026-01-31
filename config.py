@@ -4,11 +4,11 @@
 
 VOCAB_SIZE = 16384
 
-D_MODEL = 384
-N_LAYERS = 8
-N_Q_HEADS = 6
-N_KV_HEADS = 2
-D_FF = 1536
+D_MODEL = 512
+N_LAYERS = 10
+N_Q_HEADS = 8
+N_KV_HEADS = 4
+D_FF = 2048
 DROPOUT = 0.1
 
 # ============================================================
