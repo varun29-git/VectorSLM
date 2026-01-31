@@ -16,8 +16,8 @@ DROPOUT = 0.1
 # ============================================================
 
 SEQ_LEN = 1024
-BATCH_SIZE = 8
-GRAD_ACCUM_STEPS = 16
+BATCH_SIZE = 4
+GRAD_ACCUM_STEPS = 32
 
 # ============================================================
 # TRAINING SCHEDULE
