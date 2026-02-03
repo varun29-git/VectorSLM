@@ -93,7 +93,7 @@ class MixedInstructionDataset(Dataset):
         
         # Interleave [0.65, 0.15, 0.20]
         probs = [0.65, 0.15, 0.20]
-        self.mixed = interleave_datasets([ds_smol, ds_code, ds_orca], probabilities=probs, stopping_strategy="first_exhausted")
+        self.mixed = interleave_datasets([ds_smol, ds_code, ds_orca], probabilities=probs, stopping_strategy="all_exhausted")
         self.iterator = iter(self.mixed)
         
     def __len__(self):
