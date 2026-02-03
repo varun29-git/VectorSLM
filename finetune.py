@@ -180,7 +180,8 @@ def train_finetune():
         print(f"WARNING: Checkpoint {CHECKPOINT_PATH} not found! Starting from scratch.")
 
     # Data
-    train_dataset = MixedInstructionDataset(tokenizer, max_length=FT_SEQ_LEN, max_steps=50000)
+    # 300M tokens / (16 batch * 1024 seq) ~= 18311 steps
+    train_dataset = MixedInstructionDataset(tokenizer, max_length=FT_SEQ_LEN, max_steps=18311)
     train_loader = DataLoader(train_dataset, batch_size=FT_BATCH_SIZE, num_workers=1, pin_memory=True)
 
     # Optimizer
