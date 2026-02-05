@@ -14,7 +14,7 @@ The implementation adheres to a Llama decoder-only design, incorporating several
   
 - Grouped-Query Attention (GQA) and KV Caching: The attention mechanism supports grouped query-key-value ratios. By using fewer KV heads than query heads, the model reduces the memory footprint of the KV cache during inference, enabling faster generation and larger batch sizes without sacrificing significant performance.
   
-- Flash Attention Integration: The attention mechanism utilizes torch.nn.functional.scaled_dot_product_attention, which dispatches to fused FlashAttention-2 kernels. This minimizes GPU memory I/O by tiling the attention computation, significantly reducing memory overhead for longer sequences.
+- Flash Attention Integration: The attention mechanism utilizes *`torch.nn.functional.scaled_dot_product_attention`*, which dispatches to fused FlashAttention-2 kernels. This minimizes GPU memory I/O by tiling the attention computation, significantly reducing memory overhead for longer sequences.
 
 - SwiGLU Activation: Employs a gated linear unit structure using SiLU activations ($x \cdot \sigma(x)$) in the feed-forward blocks for improved representational power.
 - Weight Tying: The output projection layer shares the same weight matrix as the input embeddings, reducing total parameter count and improving training efficiency.
