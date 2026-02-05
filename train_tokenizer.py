@@ -14,7 +14,7 @@ def train_tokenizer():
     # DCLM
     ds_dclm = load_dataset("mlfoundations/dclm-baseline-1.0", split="train", streaming=True)
 
-    # Create an iterator that yields text from all four 
+    # Iterator that yields text from all four 
     def batch_iterator(batch_size=1000):
         buffer = []
         

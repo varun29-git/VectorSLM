@@ -39,9 +39,6 @@ def get_model(vocab_size):
         dropout=DROPOUT
     )
 
-
-
-
 # Define mapping functions used in dataset loading
 
 def train_mixed_strategy(model, optimizer, scaler, vocab_size, global_tracker=None):

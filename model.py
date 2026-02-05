@@ -1,309 +1,266 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Optional, Tuple
 
-# ------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------
 
 class InputEmbedding(nn.Module):
-    def __init__(self, vocab_size, embedding_size):
+    def __init__(self, vocab_size: int, d_model: int):
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, embedding_size)
+        self.embedding = nn.Embedding(vocab_size, d_model)
     
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.embedding(x)
 
-# ------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------
 
 class RMSNorm(nn.Module):
-    def __init__(self, d_model, eps=1e-6):
-        # Llama uses 1e-6
+    def __init__(self, d_model: int, eps: float = 1e-6):
         super().__init__()
-
-        # RMS normalizes scale only, so no beta parameter
         self.gamma = nn.Parameter(torch.ones(d_model))
-        self.epsilon = eps
+        self.eps = eps
     
-    def forward(self, x):
-        sqrs = x.square()        
-        mean_sqr = sqrs.mean(dim=-1, keepdim=True)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        rms = torch.sqrt(x.square().mean(dim=-1, keepdim=True) + self.eps)
+        return self.gamma * (x / rms)
 
-        # Add epsilon to avoid division by zero
-        mean_sqr = mean_sqr + self.epsilon
-        RMS = mean_sqr.sqrt()
-
-        # Each token normalized by the RMS
-        x = x / RMS
-
-        # Scale by gamma
-        return self.gamma * x
-    
-# ------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------
 
 class FeedForward(nn.Module):
-
-    def __init__(self, d_model, d_ff, dropout):
+    def __init__(self, d_model: int, d_ff: int, dropout: float):
         super().__init__()
-        self.dropout = nn.Dropout(dropout)
-        self.linear1 = nn.Linear(d_model, 2 * d_ff)
-        # No bias in the output layer
-        self.linear2 = nn.Linear(d_ff, d_model, bias=False)
-
-    @staticmethod
-    def SWiGLU(x):
-        # Input split into two parts
-        x1, x2 = x.chunk(2, dim=-1)
-        # SwiGLU(x) = SiLU(x1) * x2
-        return F.silu(x1) * x2
-
-    def forward(self, x):
-        x = self.linear1(x)
-        x = self.SWiGLU(x)
-        x = self.linear2(x)
-        x = self.dropout(x)
-        return x
-
-# ------------------------------------------------------------------------------------------------------
-
-class ResidualConnection(nn.Module):
-    def __init__(self, d_model, dropout):
-        super().__init__()
-        self.norm = RMSNorm(d_model)
+        self.gate_proj = nn.Linear(d_model, d_ff, bias=False)
+        self.up_proj = nn.Linear(d_model, d_ff, bias=False)
+        self.down_proj = nn.Linear(d_ff, d_model, bias=False)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, sublayer, *args, **kwargs):
-        return x + self.dropout(sublayer(self.norm(x), *args, **kwargs))
-    
-# ------------------------------------------------------------------------------------------------------
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.dropout(self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x)))
 
+# ------------------------------------------------------------------------------------------------------------
 
-def repeat_kv(keys: torch.Tensor, values: torch.Tensor, repeats: int, dim: int):
-    keys = torch.repeat_interleave(keys, repeats=repeats, dim=dim)
-    values = torch.repeat_interleave(values, repeats=repeats, dim=dim)
-    return keys, values
-
-# Compile the function if PyTorch 2.0+ is available
-if hasattr(torch, "compile"):
-    repeat_kv = torch.compile(repeat_kv)
-
-class GQA_Flash_RoPE(nn.Module):
-    
-    def __init__(self, d_model, num_q_heads, num_kv_heads, dropout):
+class RotaryEmbedding(nn.Module):
+    def __init__(self, head_dim: int, max_seq_len: int = 8192, base: float = 10000.0):
         super().__init__()
-
-        assert d_model % num_q_heads == 0, "d_model must be divisible by num_q_heads"
-        assert num_q_heads % num_kv_heads == 0, "num_q_heads must be divisible by num_kv_heads"
+        self.head_dim = head_dim
+        self.max_seq_len = max_seq_len
+        self.base = base
         
-        self.d_model = d_model
-        self.dropout = nn.Dropout(dropout)
-        self.num_q_heads = num_q_heads
-        self.num_kv_heads = num_kv_heads
-        self.d_k = d_model // num_q_heads
-
-        self.w_q = nn.Linear(d_model, d_model, bias=False)
-        self.w_k = nn.Linear(d_model, self.d_k * num_kv_heads, bias=False)
-        self.w_v = nn.Linear(d_model, self.d_k * num_kv_heads, bias=False)
-        self.w_o = nn.Linear(d_model, d_model, bias=False)
-
-        # RoPE buffers
-        self.register_buffer("sin", None, persistent=False)
-        self.register_buffer("cos", None, persistent=False)
-
-        # Cache buffers
-        self.register_buffer("k_cache", None, persistent=False)
-        self.register_buffer("v_cache", None, persistent=False)
-
-      
-    @staticmethod
-    def apply_rope(x, sin, cos):
-        
-        # Get the last dimension and put the assertion
-        d_k = x.shape[-1]
-        assert d_k % 2 == 0, "RoPE requires even d_k"
-
-        # If sin and cos are 2D, expand them to match the batch and head dimensions
-        if sin.dim() == 2:      # (T, d_k//2)
-            sin = sin[None, None, :, :]  # (1, 1, T, d_k//2)
-            cos = cos[None, None, :, :]
-        
-        # Split even and odd
-        x_even = x[..., 0::2]
-        x_odd  = x[..., 1::2]
-
-        # Apply RoPE to even and odd
-        x_rot_even = x_even * cos - x_odd * sin
-        x_rot_odd  = x_odd  * cos + x_even * sin
-
-        # Combine even and odd
-        x_rot = torch.stack([x_rot_even, x_rot_odd], dim=-1).flatten(-2)
-        return x_rot
+        inv_freq = 1.0 / (base ** (torch.arange(0, head_dim, 2).float() / head_dim))
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self._build_cache(max_seq_len)
     
-    @staticmethod
-    def get_rope_sin_cos(T, d_k, device):
-
-        # Assert d_k is even
-        assert d_k % 2 == 0
-
-        # Positional encoding
-        pos = torch.arange(T, device=device)          # (T,)
-        dim = torch.arange(0, d_k, 2, device=device)  # (d_k/2,)
+    def _build_cache(self, seq_len: int):
+        positions = torch.arange(seq_len, device=self.inv_freq.device)
+        angles = positions[:, None] * self.inv_freq[None, :]
+        sin = angles.sin()
+        cos = angles.cos()
+        self.register_buffer("sin_cache", sin, persistent=False)
+        self.register_buffer("cos_cache", cos, persistent=False)
+    
+    def forward(self, x: torch.Tensor, start_pos: int = 0) -> Tuple[torch.Tensor, torch.Tensor]:
+        seq_len = x.shape[2]
+        total_len = start_pos + seq_len
         
-        # Inverse frequency
-        inv_freq = 1.0 / (10000 ** (torch.arange(0, d_k, 2, device=device).float() / d_k))
-        angles = pos[:, None] * inv_freq[None, :]     # (T, d_k/2)
-
-        # Sine and cosine
-        sin = angles.sin()[None, None, :, :]  # (1, 1, T, d_k/2)
-        cos = angles.cos()[None, None, :, :]  # (1, 1, T, d_k/2)
-
+        if total_len > self.sin_cache.shape[0]:
+            self._build_cache(total_len)
+        
+        sin = self.sin_cache[start_pos:total_len].to(x.dtype)
+        cos = self.cos_cache[start_pos:total_len].to(x.dtype)
         return sin, cos
+
+# Apply RoPE to Q and K only
+def apply_rotary_pos_emb(x: torch.Tensor, sin: torch.Tensor, cos: torch.Tensor) -> torch.Tensor:
+    x_even = x[..., 0::2]
+    x_odd = x[..., 1::2]
     
-    def reset_cache(self):
-        self.k_cache = None
-        self.v_cache = None
-
+    sin = sin[None, None, :, :]
+    cos = cos[None, None, :, :]
     
-    def forward(self, x, start_pos=0, use_cache=False):
+    x_rot_even = x_even * cos - x_odd * sin
+    x_rot_odd = x_even * sin + x_odd * cos
+    
+    return torch.stack([x_rot_even, x_rot_odd], dim=-1).flatten(-2)
+
+# Expand KV heads to match Q heads
+def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
+    if n_rep == 1:
+        return x
+    B, n_kv_heads, T, head_dim = x.shape
+    return x[:, :, None, :, :].expand(B, n_kv_heads, n_rep, T, head_dim).reshape(B, n_kv_heads * n_rep, T, head_dim)
+
+# ------------------------------------------------------------------------------------------------------------
+
+class GroupedQueryAttention(nn.Module):
+    def __init__(self, d_model: int, n_q_heads: int, n_kv_heads: int, dropout: float):
+        super().__init__()
         
-        B, T, d_model = x.shape
-
-        # Project to Q, K, V
-        query = self.w_q(x)
-        key   = self.w_k(x)
-        value = self.w_v(x)
+        assert d_model % n_q_heads == 0
+        assert n_q_heads % n_kv_heads == 0
         
-        # Reshaping
-        query = query.reshape(B, T, self.num_q_heads, self.d_k).transpose(1, 2).contiguous()
-        key = key.reshape(B, T, self.num_kv_heads, self.d_k).transpose(1, 2).contiguous()
-        value = value.reshape(B, T, self.num_kv_heads, self.d_k).transpose(1, 2).contiguous()
-
-        # RoPE cache handling
-        if self.sin is None or self.sin.shape[-2] < start_pos + T:
-            sin, cos = self.get_rope_sin_cos(start_pos + T, self.d_k, x.device)
-            self.sin = sin.to(x.dtype)
-            self.cos = cos.to(x.dtype)
-
-        sin = self.sin[:, :, start_pos:start_pos + T, :].to(device=x.device, dtype=x.dtype)
-        cos = self.cos[:, :, start_pos:start_pos + T, :].to(device=x.device, dtype=x.dtype)
+        self.n_q_heads = n_q_heads
+        self.n_kv_heads = n_kv_heads
+        self.n_rep = n_q_heads // n_kv_heads
+        self.head_dim = d_model // n_q_heads
         
-        # Apply RoPE
-        query = self.apply_rope(query, sin, cos)
-        key = self.apply_rope(key, sin, cos)
+        self.w_q = nn.Linear(d_model, n_q_heads * self.head_dim, bias=False)
+        self.w_k = nn.Linear(d_model, n_kv_heads * self.head_dim, bias=False)
+        self.w_v = nn.Linear(d_model, n_kv_heads * self.head_dim, bias=False)
+        self.w_o = nn.Linear(n_q_heads * self.head_dim, d_model, bias=False)
         
-        # Cache handling
-        if use_cache:
-            if self.k_cache is None:
-                self.k_cache = key
-                self.v_cache = value
-            else:
-                self.k_cache = torch.cat([self.k_cache, key], dim=2)
-                self.v_cache = torch.cat([self.v_cache, value], dim=2)
-            
-            key, value = self.k_cache, self.v_cache
+        self.rotary_emb = RotaryEmbedding(self.head_dim)
+        self.dropout_p = dropout
+    
+    def forward(
+        self,
+        x: torch.Tensor,
+        past_kv: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        use_cache: bool = False
+    ) -> Tuple[torch.Tensor, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         
-        # Broadcast key and value
-        num_groups = self.num_q_heads // self.num_kv_heads
-        key, value = repeat_kv(key, value, num_groups, 1)
-
-        # Flash attention with Pytorch
-        attn_out = F.scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=self.dropout.p if self.training else 0.0, is_causal=True)
-
-        # Reshape and project to output
-        attn_out = attn_out.transpose(1, 2).contiguous().reshape(B, T, self.num_q_heads * self.d_k)
-
-        output = self.w_o(attn_out)
-        return output
-  
-# ------------------------------------------------------------------------------------------------------
-
+        B, T, _ = x.shape
+        start_pos = past_kv[0].shape[2] if past_kv is not None else 0
         
+        # Project to Q, K, V with different head counts
+        q = self.w_q(x).view(B, T, self.n_q_heads, self.head_dim).transpose(1, 2)
+        k = self.w_k(x).view(B, T, self.n_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.w_v(x).view(B, T, self.n_kv_heads, self.head_dim).transpose(1, 2)
+        
+        # RoPE applied to Q and K only
+        sin, cos = self.rotary_emb(q, start_pos)
+        q = apply_rotary_pos_emb(q, sin, cos)
+        k = apply_rotary_pos_emb(k, sin, cos)
+        
+        # Concatenate with cached KV if present
+        if past_kv is not None:
+            past_k, past_v = past_kv
+            k = torch.cat([past_k, k], dim=2)
+            v = torch.cat([past_v, v], dim=2)
+        
+        new_kv = (k, v) if use_cache else None
+        
+        # Expand KV to match Q head count for GQA
+        k_expanded = repeat_kv(k, self.n_rep)
+        v_expanded = repeat_kv(v, self.n_rep)
+        
+        dropout_p = self.dropout_p if self.training else 0.0
+        attn_out = F.scaled_dot_product_attention(
+            q, k_expanded, v_expanded,
+            attn_mask=None,
+            dropout_p=dropout_p,
+            is_causal=(past_kv is None)
+        )
+        
+        attn_out = attn_out.transpose(1, 2).contiguous().view(B, T, -1)
+        return self.w_o(attn_out), new_kv
+
+# ------------------------------------------------------------------------------------------------------------
 
 class DecoderBlock(nn.Module):
-
-    def __init__(self, d_model, attention: GQA_Flash_RoPE , feed_forward: FeedForward, dropout):
-        
+    def __init__(self, d_model: int, n_q_heads: int, n_kv_heads: int, d_ff: int, dropout: float):
         super().__init__()
-        self.attention = attention
-        self.feed_forward = feed_forward
-        self.residual_connections = nn.ModuleList([ResidualConnection(d_model, dropout), ResidualConnection(d_model, dropout)])
+        self.attn_norm = RMSNorm(d_model)
+        self.attention = GroupedQueryAttention(d_model, n_q_heads, n_kv_heads, dropout)
+        self.ffn_norm = RMSNorm(d_model)
+        self.feed_forward = FeedForward(d_model, d_ff, dropout)
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(
+        self,
+        x: torch.Tensor,
+        past_kv: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        use_cache: bool = False
+    ) -> Tuple[torch.Tensor, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
+        
+        attn_out, new_kv = self.attention(self.attn_norm(x), past_kv=past_kv, use_cache=use_cache)
+        x = x + self.dropout(attn_out)
+        x = x + self.dropout(self.feed_forward(self.ffn_norm(x)))
+        return x, new_kv
 
-    def forward(self, x, start_pos=0, use_cache=False):
-        x = self.residual_connections[0](x, self.attention, start_pos, use_cache) # GQA + residual
-        x = self.residual_connections[1](x, self.feed_forward) # Feed-forward + residual
-        return x
-
-# ------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------
 
 class Decoder(nn.Module):
-
-    def __init__(self, layers: nn.ModuleList, d_model):
+    def __init__(self, d_model: int, n_layers: int, n_q_heads: int, n_kv_heads: int, d_ff: int, dropout: float):
         super().__init__()
-        self.layers = layers
+        self.layers = nn.ModuleList([
+            DecoderBlock(d_model, n_q_heads, n_kv_heads, d_ff, dropout)
+            for _ in range(n_layers)
+        ])
         self.norm = RMSNorm(d_model)
+    
+    def forward(
+        self,
+        x: torch.Tensor,
+        past_kv_list: Optional[list] = None,
+        use_cache: bool = False
+    ) -> Tuple[torch.Tensor, Optional[list]]:
+        
+        new_kv_list = [] if use_cache else None
+        
+        for i, layer in enumerate(self.layers):
+            layer_past_kv = past_kv_list[i] if past_kv_list is not None else None
+            x, new_kv = layer(x, past_kv=layer_past_kv, use_cache=use_cache)
+            if use_cache:
+                new_kv_list.append(new_kv)
+        
+        return self.norm(x), new_kv_list
 
-    def forward(self, x, start_pos=0, use_cache=False):
-        # Pass through all decoder blocks
-        for layer in self.layers:
-            x = layer(x, start_pos=start_pos, use_cache=use_cache)
-        return self.norm(x)
-
-# ------------------------------------------------------------------------------------------------------
-
-class ProjectionLayer(nn.Module):
-
-    def __init__(self, d_model, vocab_size):
-        super().__init__()
-        self.linear = nn.Linear(d_model, vocab_size, bias=False)
-
-    def forward(self, x):
-        return self.linear(x)
-
-# ------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------
 
 class FlashLLaMA(nn.Module):
-
-    def __init__(self, embedding, decoder, projection):
+    def __init__(
+        self,
+        vocab_size: int,
+        d_model: int,
+        n_layers: int,
+        n_q_heads: int,
+        n_kv_heads: int,
+        d_ff: int,
+        dropout: float
+    ):
         super().__init__()
-        self.embedding = embedding
-        self.decoder = decoder
-        self.projection = projection
-
-    def forward(self, x, start_pos=0, use_cache=False):
-        x = self.embedding(x)
-        x = self.decoder(x, start_pos=start_pos, use_cache=use_cache)
-        x = self.projection(x)
-        return x
+        self.embedding = InputEmbedding(vocab_size, d_model)
+        self.decoder = Decoder(d_model, n_layers, n_q_heads, n_kv_heads, d_ff, dropout)
+        self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
+        
+        # Weight tying: output projection shares weights with input embedding
+        self.lm_head.weight = self.embedding.embedding.weight
     
-    def reset_kv_cache(self):
-        for layer in self.decoder.layers:
-            layer.attention.reset_cache()
+    def forward(
+        self,
+        x: torch.Tensor,
+        past_kv_list: Optional[list] = None,
+        use_cache: bool = False
+    ):
+        h = self.embedding(x)
+        h, new_kv_list = self.decoder(h, past_kv_list=past_kv_list, use_cache=use_cache)
+        logits = self.lm_head(h)
+        
+        if use_cache:
+            return logits, new_kv_list
+        return logits
 
+# ------------------------------------------------------------------------------------------------------------
 
-# ------------------------------------------------------------------------------------------------------
+def build_llama(
+    vocab_size: int,
+    d_model: int = 1024,
+    num_layers: int = 12,
+    num_q_heads: int = 8,
+    num_kv_heads: int = 4,
+    d_ff: int = 2048,
+    dropout: float = 0.1
+) -> FlashLLaMA:
+    
+    return FlashLLaMA(
+        vocab_size=vocab_size,
+        d_model=d_model,
+        n_layers=num_layers,
+        n_q_heads=num_q_heads,
+        n_kv_heads=num_kv_heads,
+        d_ff=d_ff,
+        dropout=dropout
+    )
 
-def build_llama(vocab_size, d_model=1024, num_layers=12, num_q_heads=8, num_kv_heads=8, d_ff=2048, dropout=0.1):
-
-    # Input embedding
-    embedding = InputEmbedding(vocab_size, d_model)
-
-    # Decoder layers
-    decoder_layers = []
-    for _ in range(num_layers):
-        attention = GQA_Flash_RoPE(d_model, num_q_heads, num_kv_heads, dropout)
-        feed_forward = FeedForward(d_model, d_ff, dropout)
-        decoder_layers.append(DecoderBlock(d_model, attention, feed_forward, dropout))
-
-    # Decoder
-    decoder = Decoder(nn.ModuleList(decoder_layers), d_model)
-
-    # Projection layer
-    projection = ProjectionLayer(d_model, vocab_size)
-
-    # Weight tying
-    projection.linear.weight = embedding.embedding.weight
-
-    # Model
-    model = FlashLLaMA(embedding, decoder, projection)
-    return model
-
-# ------------------------------------------------------------------------------------------------------
-
+# ------------------------------------------------------------------------------------------------------------
