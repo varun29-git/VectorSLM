@@ -4,6 +4,7 @@ VectorSLM is a from-scratch implementation of a decoder-only Transformer archite
 
 ## Model Architecture
 `model.py`
+
 The implementation adheres to a Llama decoder-only design, incorporating several architectural refinements that depart from the original "Attention Is All You Need" transformer to improve training stability and representational efficiency.
 
 - Pre-Norm residuals: Normalization is applied at the input of each sub-layer rather than the output. This creates a "gradient superhighway" that prevents early signal degradation in deeper networks.
@@ -56,6 +57,7 @@ graph TD
 
 ## Tokenizer
 `train_tokenizer.py`
+
 The repository includes a standalone BPE tokenizer pipeline built using the tokenizers library.
 
 - Custom BPE Tokenizer: A Byte-Pair Encoding model with a vocabulary size of 16,384.
@@ -71,9 +73,9 @@ The project implements a complete two-stage pipeline for model development. Whil
 
 ### Dataset Selection
 
-The training curriculum utilizes a high-signal dataset mixture to maximize learning efficiency per token: *Cosmopedia* and *FineWeb-Edu* provide a foundation of high-quality synthetic knowledge and curated educational text for world-modeling, while *DCLM* ensures exposure to diverse web-scale language patterns. *Tiny-Codes* is integrated to introduce basic algorithmic reasoning and structural syntax. 
+The training curriculum utilizes a high-signal dataset mixture to maximize learning efficiency per token: ***Cosmopedia*** and ***FineWeb-Edu*** provide a foundation of high-quality synthetic knowledge and curated educational text for world-modeling, while *DCLM* ensures exposure to diverse web-scale language patterns. ***Tiny-Codes*** is integrated to introduce basic algorithmic reasoning and structural syntax. 
 
-For the fine-tuning stage, *SmolTalk* and *SlimOrca* are utilized to transform base completions into conversational dialogue through multi-turn reasoning samples, complemented by *Tulu-3-Code* to refine technical instruction-following. This specific mixture ensures the model is exposed to a wide distribution of structured information, optimizing its ability to handle both natural language and logic tasks within a limited parameter budget.
+For the fine-tuning stage,  ***SmolTalk*** and ***SlimOrca*** are utilized to transform base completions into conversational dialogue through multi-turn reasoning samples, complemented by *Tulu-3-Code* to refine technical instruction-following. This specific mixture ensures the model is exposed to a wide distribution of structured information, optimizing its ability to handle both natural language and logic tasks within a limited parameter budget.
 
 ### Infrastructure
 
@@ -85,6 +87,7 @@ For the fine-tuning stage, *SmolTalk* and *SlimOrca* are utilized to transform b
 
 ## Dataset
 `dataset.py`
+
 Contains the StreamingLanguageModelDataset, which utilizes PyTorch's IterableDataset to stream tokens directly from the cloud, bypassing the need for massive local storage.
 
 ## Design Philosophy
