@@ -83,7 +83,7 @@ For the fine-tuning stage,  ***SmolTalk*** and ***SlimOrca*** are utilized to tr
 
 - Fine-tuning (finetune.py): Transitions the base model to an instruction-following assistant using a masked loss strategy (ignore_index=-100) so the model only learns to predict assistant responses.
 
-*Note on Compute*: The scripts are fully functional and tested on small subsets of data. Full-scale training of the 3B token curriculum is deferred until specialized hardware becomes available; however, the pipelines are architected to be "drop-in" ready for large-scale clusters.
+*Note on Compute*: The scripts are fully functional and tested on small subsets of data. Full-scale training of the curriculum is deferred until hardware becomes available; however, the pipelines are architected to be "drop-in" ready for large-scale clusters.
 
 ## Dataset
 `dataset.py`
