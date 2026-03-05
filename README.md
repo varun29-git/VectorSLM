@@ -53,7 +53,7 @@ graph TD
     B -.-|Weight Tying| I
 ```
 
-*Note on Attention Efficiency*: While GQA is the current industry standard for optimizing KV cache memory (as seen in Llama 3), Multi-Head Latent Attention (MLA) has recently emerged as a theoretically more efficient alternative through low-rank compression. GQA was selected for this project to prioritize implementation clarity and alignment with established open-source architectures, though MLA represents a clear direction for further research into context window scaling.
+*Note on Attention Efficiency*: While GQA is the current industry standard for optimizing KV cache memory (as seen in Llama 3), Multi-Head Latent Attention (MLA) has recently emerged as a theoretically more efficient alternative through low-rank compression. GQA was implemented in this project because at an SLM scale MLA provides limited practical benefit while introducing additional architectural and deployment complexity, particularly due to limited support in inference frameworks such as llama.cpp.
 
 ## Tokenizer
 `train_tokenizer.py`
