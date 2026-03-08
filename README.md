@@ -7,18 +7,18 @@ VectorSLM is a from-scratch implementation of a decoder-only Transformer archite
 
 The implementation adheres to a Llama decoder-only design, incorporating several architectural refinements that depart from the original "Attention Is All You Need" transformer to improve training stability and representational efficiency.
 
-- Pre-Norm residuals: Normalization is applied at the input of each sub-layer rather than the output. This creates a "gradient superhighway" that prevents early signal degradation in deeper networks.
+- **Pre-Norm residuals**: Normalization is applied at the input of each sub-layer rather than the output. This creates a "gradient superhighway" that prevents early signal degradation in deeper networks.
   
-- RMSNorm: Replaces standard LayerNorm by normalizing inputs based on their root mean square, which simplifies the computation by removing the mean-centering step without sacrificing performance.
+- **RMSNorm**: Replaces standard LayerNorm by normalizing inputs based on their root mean square, which simplifies the computation by removing the mean-centering step without sacrificing performance.
   
-- Rotary Positional Embeddings (RoPE): Implements relative position information by rotating the Query and Key vectors in the attention mechanism. This allows the model to better generalize to different sequence lengths compared to absolute learned embeddings
+- **Rotary Positional Embeddings (RoPE)**: Implements relative position information by rotating the Query and Key vectors in the attention mechanism. This allows the model to better generalize to different sequence lengths compared to absolute learned embeddings
   
-- Grouped-Query Attention (GQA) and KV Caching: The attention mechanism supports grouped query-key-value ratios. By using fewer KV heads than query heads, the model reduces the memory footprint of the KV cache during inference, enabling faster generation and larger batch sizes without sacrificing significant performance.
+- **Grouped-Query Attention (GQA) and KV Caching**: The attention mechanism supports grouped query-key-value ratios. By using fewer KV heads than query heads, the model reduces the memory footprint of the KV cache during inference, enabling faster generation and larger batch sizes without sacrificing significant performance.
   
-- Flash Attention Integration: The attention mechanism utilizes *`torch.nn.functional.scaled_dot_product_attention`*, which dispatches to fused FlashAttention-2 kernels. This minimizes GPU memory I/O by tiling the attention computation, significantly reducing memory overhead for longer sequences.
+- **Flash Attention Integration**: The attention mechanism utilizes *`torch.nn.functional.scaled_dot_product_attention`*, which dispatches to fused FlashAttention-2 kernels. This minimizes GPU memory I/O by tiling the attention computation, significantly reducing memory overhead for longer sequences.
 
-- SwiGLU Activation: Employs a gated linear unit structure using SiLU activations in the feed-forward blocks for improved representational power.
-- Weight Tying: The output projection layer shares the same weight matrix as the input embeddings, reducing total parameter count and improving training efficiency.
+- **SwiGLU Activation**: Employs a gated linear unit structure using SiLU activations in the feed-forward blocks for improved representational power.
+- **Weight Tying**: The output projection layer shares the same weight matrix as the input embeddings, reducing total parameter count and improving training efficiency.
 
 The following diagram illustrates the data flow through the model
 
