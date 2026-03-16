@@ -99,5 +99,5 @@ VectorCLM is a small-scale transformer implementation aimed at improving underst
 
 - **FlashAttention**: [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning](https://arxiv.org/abs/2307.08691) (Dao, 2023)
 
-- **MuON**: [MuON: A Unified Optimizer for Training Large Language Models](https://kellerjordan.github.io/posts/muon/ (Keller, 2024)
+- **MuON**: [MuON: A Unified Optimizer for Training Large Language Models](https://kellerjordan.github.io/posts/muon/ )(Keller, 2024)
     
