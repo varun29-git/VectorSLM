@@ -9,6 +9,7 @@ from datasets import load_dataset, interleave_datasets
 from tokenizers import Tokenizer
 import bitsandbytes as bnb
 import random
+from muon import Muon
 
 from config import *
 from model import build_llama
@@ -189,7 +190,7 @@ def train_finetune():
     train_loader = DataLoader(train_dataset, batch_size=FT_BATCH_SIZE, num_workers=1, pin_memory=True)
 
     # Optimizer
-    optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=FT_LR)
+    optimizer = Muon(model.parameters(), lr=FT_LR, momentum=0.95)
     scaler = torch.cuda.amp.GradScaler(enabled=(device.type == 'cuda'))
     loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
 

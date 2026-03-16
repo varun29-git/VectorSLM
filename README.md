@@ -79,7 +79,7 @@ For the fine-tuning stage,  ***SmolTalk*** and ***SlimOrca*** are utilized to tr
 
 ### Infrastructure
 
-- Pre-training (train.py): Designed for a 3.5 billion token curriculum using an interleaved streaming approach to handle large-scale datasets with minimal memory overhead. Pretraining utilizes 8-bit AdamW (via bitsandbytes) and a Cosine Annealing learning rate schedule.
+- Pre-training (train.py): Designed for a 3.5 billion token curriculum using an interleaved streaming approach to handle large-scale datasets with minimal memory overhead. Pretraining utilizes the Muon optimizer and a Cosine Annealing learning rate schedule.
 
 - Fine-tuning (finetune.py): Transitions the base model to an instruction-following assistant using a masked loss strategy (ignore_index=-100) so the model only learns to predict assistant responses.
 

@@ -14,6 +14,7 @@ from model import build_llama
 from dataset import StreamingLanguageModelDataset
 import random
 import math
+from muon import Muon
 
 TOTAL_TRAINING_TOKENS = 3_500_000_000
 
@@ -174,26 +175,11 @@ def train():
     scaler = torch.cuda.amp.GradScaler(enabled=(device.type == 'cuda'))
     
     # Initialize Optimizer
-    optimizer = None
-    try:
-        import bitsandbytes as bnb
-        print("Using 8-bit AdamW optimizer via bitsandbytes...")
-        optimizer = bnb.optim.AdamW8bit(
-            model.parameters(),
-            lr=LR,
-            weight_decay=0.1,
-            betas=(0.9, 0.99),
-            eps=1e-8
-        )
-    except Exception as e:
-        print(f"Warning: bitsandbytes failed to load ({e}). Fallback to standard AdamW.")
-        optimizer = torch.optim.AdamW(
-            model.parameters(),
-            lr=LR,
-            weight_decay=0.1,
-            betas=(0.9, 0.99),
-            eps=1e-8
-        )
+    optimizer = Muon(
+        model.parameters(),
+        lr=LR,
+        momentum=0.95
+    )
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model Parameters: {n_params:,}")
