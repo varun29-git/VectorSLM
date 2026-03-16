@@ -3,5 +3,4 @@ tiktoken
 datasets
 tqdm
 tensorboard
-bitsandbytes
 zstandard
