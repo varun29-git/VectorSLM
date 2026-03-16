@@ -46,11 +46,6 @@ def train_mixed_strategy(model, optimizer, scaler, vocab_size, global_tracker=No
     loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
     
     # Define mapping functions
-    def map_tiny_codes(x):
-        prompt = x.get('prompt', '')
-        response = x.get('response', '')
-        text = f"User: {prompt}\n\nAssistant: {response}"
-        return {"text": text}
 
     # Load Tokenizer
     try:
@@ -77,26 +72,15 @@ def train_mixed_strategy(model, optimizer, scaler, vocab_size, global_tracker=No
     # FineWeb-Edu 
     ds_fineweb = load_dataset("HuggingFaceFW/fineweb-edu", "sample-10BT", split="train", streaming=True)
     ds_fineweb = keep_text_only(ds_fineweb)
-    
-    # Tiny Codes 
-    ds_code = load_dataset("nampdn-ai/tiny-codes", split="train", streaming=True)
-    ds_code = ds_code.map(map_tiny_codes) 
-    ds_code = keep_text_only(ds_code)
-
-    # DCLM 
-    ds_dclm = load_dataset("mlfoundations/dclm-baseline-1.0", split="train", streaming=True)
-    ds_dclm = keep_text_only(ds_dclm)
 
     # Weights
-    probabilities = [0.5, 0.3, 0.1, 0.1]
+    probabilities = [0.6, 0.4]
     
     print("\n" + "="*50)
     print("DATASET CONFIGURATION")
     print("="*50)
     print(f"1. HuggingFaceTB/cosmopedia (Web)       : {probabilities[0]*100}%")
     print(f"2. HuggingFaceFW/fineweb-edu (Edu)      : {probabilities[1]*100}%")
-    print(f"3. nampdn-ai/tiny-codes (Code)          : {probabilities[2]*100}%")
-    print(f"4. mlfoundations/dclm-baseline-1.0      : {probabilities[3]*100}%")
     print("="*50 + "\n")
     
     from datasets import interleave_datasets
@@ -104,7 +88,7 @@ def train_mixed_strategy(model, optimizer, scaler, vocab_size, global_tracker=No
     # Interleave
     print(f"Interleaving datasets with probabilities: {probabilities}")
     mixed_dataset = interleave_datasets(
-        [ds_cosmo, ds_fineweb, ds_code, ds_dclm],
+        [ds_cosmo, ds_fineweb],
         probabilities=probabilities,
         seed=42,
         stopping_strategy="first_exhausted" 

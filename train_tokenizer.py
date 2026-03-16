@@ -9,12 +9,8 @@ def train_tokenizer():
     ds_cosmo = load_dataset("HuggingFaceTB/cosmopedia", "web_samples_v2", split="train", streaming=True)
     # FineWeb-Edu
     ds_fw = load_dataset("HuggingFaceFW/fineweb-edu", "sample-10BT", split="train", streaming=True)
-    # Tiny-Codes
-    ds_code = load_dataset("nampdn-ai/tiny-codes", split="train", streaming=True)
-    # DCLM
-    ds_dclm = load_dataset("mlfoundations/dclm-baseline-1.0", split="train", streaming=True)
 
-    # Iterator that yields text from all four 
+    # Iterator that yields text from all datasets
     def batch_iterator(batch_size=1000):
         buffer = []
         
@@ -28,23 +24,6 @@ def train_tokenizer():
         print("Sampling FineWeb-Edu (6k)...")
         for i, item in enumerate(ds_fw):
             if i >= 6000: break
-            buffer.append(item['text'])
-            
-        # Take 2000 examples from Code
-        print("Sampling Tiny-Codes (2k)...")
-        for i, item in enumerate(ds_code):
-            if i >= 2000: break
-            # Map prompt/response
-            prompt = item.get('prompt')
-            if not prompt:
-                prompt = f"In the scenario of {item.get('scenario','')}, write a {item.get('programming_language','')} script for {item.get('target_audience','')} about {item.get('main_topic','')}."
-            text = f"{prompt}\n{item.get('response', '')}"
-            buffer.append(text)
-
-        # Take 2000 examples from DCLM
-        print("Sampling DCLM (2k)...")
-        for i, item in enumerate(ds_dclm):
-            if i >= 2000: break
             buffer.append(item['text'])
             
         print(f"Collected {len(buffer)} samples. Training tokenizer...")

@@ -64,7 +64,7 @@ The repository includes a standalone BPE tokenizer pipeline built using the toke
 
 - Design trade-offs: A relatively small vocabulary size was chosen to minimize the memory footprint of the embedding layers, ensuring parameter allocation is concentrated in the Transformer blocks.
 
-- Training Data: The tokenizer was trained on a balanced subset of 20,000 documents sampled from Cosmopedia, FineWeb-Edu, Tiny-Codes, and DCLM to ensure efficient encoding of both natural language and source code.
+- Training Data: The tokenizer was trained on a balanced subset of documents sampled from Cosmopedia and FineWeb-Edu to ensure efficient encoding of natural language.
 
 ## Training & Finetuning 
 `train.py` and `finetune.py`
@@ -73,7 +73,7 @@ The project implements a complete two-stage pipeline for model development. Whil
 
 ### Dataset Selection
 
-The training curriculum utilizes a high-signal dataset mixture to maximize learning efficiency per token: ***Cosmopedia*** and ***FineWeb-Edu*** provide a foundation of high-quality synthetic knowledge and curated educational text for world-modeling, while *DCLM* ensures exposure to diverse web-scale language patterns. ***Tiny-Codes*** is integrated to introduce basic algorithmic reasoning and structural syntax. 
+The training curriculum utilizes a high-signal dataset mixture to maximize learning efficiency per token: ***Cosmopedia*** and ***FineWeb-Edu*** provide a foundation of high-quality synthetic knowledge and curated educational text for world-modeling.
 
 For the fine-tuning stage,  ***SmolTalk*** and ***SlimOrca*** are utilized to transform base completions into conversational dialogue through multi-turn reasoning samples, complemented by *Tulu-3-Code* to refine technical instruction-following. This specific mixture ensures the model is exposed to a wide distribution of structured information, optimizing its ability to handle both natural language and logic tasks within a limited parameter budget.
 
