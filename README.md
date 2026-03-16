@@ -1,6 +1,6 @@
-# VectorSLM
+# Vector
 
-VectorSLM is a from-scratch implementation of a decoder-only Transformer architecture, designed as a technical exercise in modern language model design. The project encompasses the entire lifecycle of a Small Language Model (SLM), including custom BPE tokenization, a multi-stage pre-training curriculum (at 600 million parameters), and instruction fine-tuning infrastructure.
+Vector is a from-scratch implementation of a decoder-only Transformer architecture, designed as a technical exercise in modern language model design. The project encompasses the entire lifecycle of a Language Model, including custom BPE tokenization, a multi-stage pre-training curriculum (at 50 million parameters), and instruction fine-tuning infrastructure.
 
 ## Model Architecture
 `model.py`
@@ -53,7 +53,7 @@ graph TD
     B -.-|Weight Tying| I
 ```
 
-*Note on Attention Efficiency*: While GQA is the current industry standard for optimizing KV cache memory (as seen in Llama 3), Multi-Head Latent Attention (MLA) has recently emerged as a theoretically more efficient alternative through low-rank compression. GQA was implemented in this project because at an SLM scale MLA provides limited practical benefit while introducing additional architectural and deployment complexity, particularly due to limited support in inference frameworks such as llama.cpp.
+*Note on Attention Efficiency*: While GQA is the current industry standard for optimizing KV cache memory (as seen in Llama 3), Multi-Head Latent Attention (MLA) has recently emerged as a theoretically more efficient alternative through low-rank compression. GQA was implemented in this project because at this scale MLA provides limited practical benefit while introducing additional architectural and deployment complexity, particularly due to limited support in inference frameworks such as llama.cpp.
 
 ## Tokenizer
 `train_tokenizer.py`
@@ -79,7 +79,7 @@ For the fine-tuning stage,  ***SmolTalk*** and ***SlimOrca*** are utilized to tr
 
 ### Infrastructure
 
-- Pre-training (train.py): Designed for a 50 billion token curriculum using an interleaved streaming approach to handle large-scale datasets with minimal memory overhead. Pretraining utilizes 8-bit AdamW (via bitsandbytes) and a Cosine Annealing learning rate schedule.
+- Pre-training (train.py): Designed for a 3.5 billion token curriculum using an interleaved streaming approach to handle large-scale datasets with minimal memory overhead. Pretraining utilizes 8-bit AdamW (via bitsandbytes) and a Cosine Annealing learning rate schedule.
 
 - Fine-tuning (finetune.py): Transitions the base model to an instruction-following assistant using a masked loss strategy (ignore_index=-100) so the model only learns to predict assistant responses.
 
@@ -91,4 +91,4 @@ For the fine-tuning stage,  ***SmolTalk*** and ***SlimOrca*** are utilized to tr
 Contains the StreamingLanguageModelDataset, which utilizes PyTorch's IterableDataset to stream tokens directly from the cloud, bypassing the need for massive local storage.
 
 ## Design Philosophy
-VectorSLM is a small-scale transformer implementation aimed at improving understanding of modern architectural design choices. The project prioritizes clear, readable implementations of core components such as RoPE, GQA, and Pre-Normalization—over benchmark performance, with the goal of making these ideas easier to study and modify.
+Vector is a small-scale transformer implementation aimed at improving understanding of modern architectural design choices. The project prioritizes clear, readable implementations of core components such as RoPE, GQA, and Pre-Normalization—over benchmark performance, with the goal of making these ideas easier to study and modify.
