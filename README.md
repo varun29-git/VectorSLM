@@ -1,6 +1,6 @@
-# Vector
+# VectorCLM
 
-Vector is a from-scratch implementation of a decoder-only Transformer architecture, designed as a technical exercise in modern language model design. The project encompasses the entire lifecycle of a Language Model, including custom BPE tokenization, a multi-stage pre-training curriculum (at 50 million parameters), and instruction fine-tuning infrastructure.
+VectorCLM is a from-scratch implementation of a decoder-only Transformer architecture, designed as a technical exercise in modern language model design. The project encompasses the entire lifecycle of a Language Model, including custom BPE tokenization, a multi-stage pre-training curriculum (at 50 million parameters), and instruction fine-tuning infrastructure.
 
 ## Model Architecture
 `model.py`
@@ -11,7 +11,7 @@ The implementation adheres to a Llama decoder-only design, incorporating several
   
 - **RMSNorm**: Replaces standard LayerNorm by normalizing inputs based on their root mean square, which simplifies the computation by removing the mean-centering step without sacrificing performance.
   
-- **Rotary Positional Embeddings (RoPE)**: Implements relative position information by rotating the Query and Key vectors in the attention mechanism. This allows the model to better generalize to different sequence lengths compared to absolute learned embeddings
+- **Rotary Positional Embeddings (RoPE)**: Implements relative position information by rotating the Query and Key VectorCLMs in the attention mechanism. This allows the model to better generalize to different sequence lengths compared to absolute learned embeddings
   
 - **Grouped-Query Attention (GQA) and KV Caching**: The attention mechanism supports grouped query-key-value ratios. By using fewer KV heads than query heads, the model reduces the memory footprint of the KV cache during inference, enabling faster generation and larger batch sizes without sacrificing significant performance.
   
@@ -91,4 +91,4 @@ For the fine-tuning stage,  ***SmolTalk*** and ***SlimOrca*** are utilized to tr
 Contains the StreamingLanguageModelDataset, which utilizes PyTorch's IterableDataset to stream tokens directly from the cloud, bypassing the need for massive local storage.
 
 ## Design Philosophy
-Vector is a small-scale transformer implementation aimed at improving understanding of modern architectural design choices. The project prioritizes clear, readable implementations of core components such as RoPE, GQA, and Pre-Normalization—over benchmark performance, with the goal of making these ideas easier to study and modify.
+VectorCLM is a small-scale transformer implementation aimed at improving understanding of modern architectural design choices. The project prioritizes clear, readable implementations of core components such as RoPE, GQA, and Pre-Normalization—over benchmark performance, with the goal of making these ideas easier to study and modify.
