@@ -19,7 +19,7 @@ import math
 from muon import SingleDeviceMuon
 import bitsandbytes as bnb
 
-TOTAL_TRAINING_TOKENS = 3_000_000_000
+TOTAL_TRAINING_TOKENS = 2_800_000_000
 WARMUP_STEPS = 1000
 
 MODEL_FOLDER = "checkpoints"
@@ -152,9 +152,6 @@ def train_mixed_strategy(model, optimizer_muon, optimizer_adamw, vocab_size, glo
     pbar = tqdm(total=TOTAL_TRAINING_TOKENS // (BATCH_SIZE * SEQ_LEN), dynamic_ncols=True)
     loss_window = deque(maxlen=50)
 
-    # Watchdog Variables
-    best_loss = float('inf')
-    last_improvement_time = time.time()
     lr_multiplier = 1.0
 
     optimizer_muon.zero_grad(set_to_none=True)
@@ -162,6 +159,10 @@ def train_mixed_strategy(model, optimizer_muon, optimizer_adamw, vocab_size, glo
 
     step = 0
     opt_step = 0
+    current_adamw_lr = LR
+    current_muon_lr = 0.02
+    current_avg_loss = 0.0
+    phase_name = "Phase 0"
     model.train()
 
     while global_tracker['tokens_seen'] < TOTAL_TRAINING_TOKENS:
@@ -193,19 +194,6 @@ def train_mixed_strategy(model, optimizer_muon, optimizer_adamw, vocab_size, glo
         if step % GRAD_ACCUM_STEPS == 0:
             opt_step += 1
             
-            # --- Emergency Defibrillator Watchdog ---
-            avg_loss = sum(loss_window) / len(loss_window) if loss_window else loss.item()
-            if avg_loss > 3.0:
-                if avg_loss < best_loss - 0.2:
-                    best_loss = avg_loss
-                    last_improvement_time = time.time()
-                
-                # Check for 2-hour stagnation (7200 seconds)
-                if time.time() - last_improvement_time > 7200:
-                    print("\nSTALL DETECTED: Applying 1.5x Thermal Kick")
-                    lr_multiplier *= 1.5
-                    best_loss = avg_loss # Reset baseline
-                    last_improvement_time = time.time() # Reset timer
             
             # Update AdamW LR with multiplier
             current_adamw_lr = get_adamw_lr(opt_step, total_steps) * lr_multiplier
@@ -213,8 +201,9 @@ def train_mixed_strategy(model, optimizer_muon, optimizer_adamw, vocab_size, glo
                 param_group['lr'] = current_adamw_lr
 
             # Update Muon LR with multiplier
+            current_muon_lr = 0.02 * lr_multiplier
             for param_group in optimizer_muon.param_groups:
-                param_group['lr'] = 0.02 * lr_multiplier
+                param_group['lr'] = current_muon_lr
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer_muon.step()
@@ -231,10 +220,10 @@ def train_mixed_strategy(model, optimizer_muon, optimizer_adamw, vocab_size, glo
         current_avg_loss = sum(loss_window) / len(loss_window)
 
         pbar.set_postfix({
-            "Phase": phase_name,
-            "Adam_LR": f"{current_adamw_lr:.1e}" if opt_step > 0 else "0.0e+00",
-            "L": f"{current_avg_loss:.2f}",
-            "Watchdog": f"{lr_multiplier:.1f}x" if current_avg_loss > 3.0 else "OFF"
+            "Ph": phase_name.split(":")[0],
+            "Adam": f"{current_adamw_lr:.1e}",
+            "Muon": f"{current_muon_lr:.1e}",
+            "Loss": f"{current_avg_loss:.3f}"
         })
 
     pbar.close()
