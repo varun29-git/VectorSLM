@@ -383,19 +383,15 @@ def train_mixed_strategy(model, optimizer_muon, optimizer_adamw, tokenizer, glob
             elapsed = max(1e-6, time.time() - global_tracker['start_time'])
             overall_tok_s = global_tracker['tokens_seen'] / elapsed
             eta_seconds = (TOTAL_TRAINING_TOKENS - global_tracker['tokens_seen']) / max(overall_tok_s, 1e-6)
+            phase_short = phase_name.split(":")[0].replace("Phase ", "P")
             progress = " | ".join([
-                phase_name,
-                f"ds={dataset_name}",
                 f"loss={current_loss:.4f}",
                 f"avg={current_avg_loss:.4f}",
+                phase_short,
+                f"ds={dataset_name}",
                 f"ga={accum_step}/{GRAD_ACCUM_STEPS}",
                 f"opt={opt_step:,}/{total_steps:,}",
-                f"adam={current_adamw_lr:.2e}",
-                f"muon={current_muon_lr:.2e}",
-                f"tok={format_tokens(global_tracker['tokens_seen'])}/{format_tokens(TOTAL_TRAINING_TOKENS)}",
-                f"tok/s={overall_tok_s:,.0f}",
-                f"dl={avg_data_ms:.0f}ms",
-                f"cmp={avg_compute_ms:.0f}ms",
+                f"tok/s={overall_tok_s / 1_000:.1f}k",
                 f"slow={bottleneck}",
                 f"eta={format_duration(eta_seconds)}",
             ])
