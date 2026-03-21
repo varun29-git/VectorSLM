@@ -1,4 +1,6 @@
 import torch
+import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -172,9 +174,13 @@ def train_mixed_strategy(model, optimizer_muon, optimizer_adamw, vocab_size, glo
         # Safe Batch Fetching
         batch, iterators[dataset_idx] = safe_get_batch(iterators[dataset_idx], dataloaders[dataset_idx], dataset_names[dataset_idx])
 
-        input_ids = batch["input_ids"].to(device, non_blocking=True)
-        targets = batch["targets"].to(device, non_blocking=True)
+        input_ids = batch["input_ids"].to(device, non_blocking=True).clone()
+        targets = batch["targets"].to(device, non_blocking=True).clone()
         batch_tokens = input_ids.numel()
+
+        # Mark step for CUDA graphs (if compile is re-enabled later)
+        if hasattr(torch.compiler, 'cudagraph_mark_step_begin'):
+            torch.compiler.cudagraph_mark_step_begin()
 
         # Inlined forward + backward
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16):
@@ -246,9 +252,9 @@ def train():
     vocab_size = VOCAB_SIZE
     model = get_model(vocab_size).to(device)
 
-    # Compiled model only
+    # Compiled model only (DISABLED to fix CUDA graph crash)
     print("Compiling model (only forward pass)...")
-    model = torch.compile(model, mode="reduce-overhead")
+    # model = torch.compile(model, mode="reduce-overhead")
 
     # --- Parameter Grouping ---
     muon_params, adamw_params = split_parameters(model)
