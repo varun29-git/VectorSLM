@@ -1,6 +1,7 @@
 from datasets import load_dataset
 from tokenizers import Tokenizer, models, trainers, pre_tokenizers, decoders, normalizers
 from tokenizers.trainers import BpeTrainer
+from config import VOCAB_SIZE
 
 def train_tokenizer():
     print("Loading dataset samples from 6 sources for tokenizer training...")
@@ -50,7 +51,7 @@ def train_tokenizer():
     tokenizer.decoder = decoders.ByteLevel()
 
     trainer = BpeTrainer(
-        vocab_size=16384,
+        vocab_size=VOCAB_SIZE,
         special_tokens=["<UNK>", "<PAD>", "<BOS>", "<EOS>"],
         show_progress=True
     )

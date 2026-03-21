@@ -5,3 +5,5 @@ tqdm
 tensorboard
 zstandard
 bitsandbytes
+tokenizers
+huggingface_hub
