@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 from typing import Optional, Tuple
 
 # ------------------------------------------------------------------------------------------------------------
@@ -220,12 +221,29 @@ class FlashLLaMA(nn.Module):
         dropout: float
     ):
         super().__init__()
+        self.n_layers = n_layers
         self.embedding = InputEmbedding(vocab_size, d_model)
         self.decoder = Decoder(d_model, n_layers, n_q_heads, n_kv_heads, d_ff, dropout)
         self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
-        
+        self.apply(self._init_weights)
+        self._scale_residual_projections()
+
         # Weight tying: output projection shares weights with input embedding
         self.lm_head.weight = self.embedding.embedding.weight
+
+    def _init_weights(self, module: nn.Module) -> None:
+        if isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        elif isinstance(module, nn.Linear):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+
+    def _scale_residual_projections(self) -> None:
+        scale = 1 / math.sqrt(2 * self.n_layers)
+        for layer in self.decoder.layers:
+            layer.attention.w_o.weight.data.mul_(scale)
+            layer.feed_forward.down_proj.weight.data.mul_(scale)
     
     def forward(
         self,
