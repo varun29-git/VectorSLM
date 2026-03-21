@@ -5,11 +5,19 @@ from tqdm import tqdm
 from pathlib import Path
 import warnings
 import time
+from contextlib import nullcontext
 from datasets import load_dataset, interleave_datasets
 from tokenizers import Tokenizer
-import bitsandbytes as bnb
 import random
-from muon import Muon
+
+try:
+    import bitsandbytes as bnb
+    BNB_AVAILABLE = True
+    BNB_IMPORT_ERROR = None
+except Exception as exc:
+    bnb = None
+    BNB_AVAILABLE = False
+    BNB_IMPORT_ERROR = exc
 
 from config import *
 from model import build_llama
@@ -22,7 +30,6 @@ FT_EPOCHS = 1
 FT_BATCH_SIZE = BATCH_SIZE
 FT_SEQ_LEN = 1024
 CHECKPOINT_PATH = f"{MODEL_FOLDER}/model_final.pt"
-FINETUNE_MODEL_FOLDER = "checkpoints_finetune"
 
 # --------------------------------------------------------------------------------
 # Mappers
@@ -148,10 +155,46 @@ class MixedInstructionDataset(Dataset):
 # --------------------------------------------------------------------------------
 # Training Loop
 # --------------------------------------------------------------------------------
-def train_finetune():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def resolve_device():
+    if torch.cuda.is_available():
+        return torch.device("cuda")
     if torch.backends.mps.is_available():
-        device = torch.device("mps")
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+def get_autocast_context(device):
+    if device.type == "cuda":
+        return torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+    if device.type == "mps":
+        return torch.autocast(device_type="mps", dtype=torch.float16)
+    return nullcontext()
+
+
+def build_optimizer(model, device):
+    if device.type == "cuda" and BNB_AVAILABLE:
+        print("Optimizer: bitsandbytes AdamW8bit")
+        return bnb.optim.AdamW8bit(
+            model.parameters(),
+            lr=FT_LR,
+            betas=(0.9, 0.95),
+            weight_decay=WEIGHT_DECAY,
+        )
+
+    if BNB_IMPORT_ERROR is not None:
+        print(f"bitsandbytes unavailable, using torch.optim.AdamW ({BNB_IMPORT_ERROR})")
+    else:
+        print("Using torch.optim.AdamW")
+    return torch.optim.AdamW(
+        model.parameters(),
+        lr=FT_LR,
+        betas=(0.9, 0.95),
+        weight_decay=WEIGHT_DECAY,
+    )
+
+
+def train_finetune():
+    device = resolve_device()
     print(f"Using device: {device}")
 
     Path(FINETUNE_MODEL_FOLDER).mkdir(parents=True, exist_ok=True)
@@ -187,11 +230,15 @@ def train_finetune():
     # Data
     # 300M tokens / (16 batch * 1024 seq) ~= 18311 steps
     train_dataset = MixedInstructionDataset(tokenizer, max_length=FT_SEQ_LEN, max_steps=18311)
-    train_loader = DataLoader(train_dataset, batch_size=FT_BATCH_SIZE, num_workers=1, pin_memory=True)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=FT_BATCH_SIZE,
+        num_workers=1,
+        pin_memory=(device.type == "cuda"),
+    )
 
     # Optimizer
-    optimizer = Muon(model.parameters(), lr=FT_LR, momentum=0.95)
-    scaler = torch.cuda.amp.GradScaler(enabled=(device.type == 'cuda'))
+    optimizer = build_optimizer(model, device)
     loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
 
     # Loop
@@ -203,18 +250,17 @@ def train_finetune():
     steps = 0
     
     for batch in pbar:
-        input_ids = batch["input_ids"].to(device)
-        targets = batch["targets"].to(device)
+        input_ids = batch["input_ids"].to(device, non_blocking=(device.type == "cuda"))
+        targets = batch["targets"].to(device, non_blocking=(device.type == "cuda"))
         
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
         
-        with torch.autocast(device_type=device.type, dtype=torch.float16):
+        with get_autocast_context(device):
             logits = model(input_ids)
-            loss = loss_fn(logits.view(-1, logits.size(-1)), targets.view(-1))
+            loss = loss_fn(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
         
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        loss.backward()
+        optimizer.step()
         
         loss_val = loss.item()
         total_loss += loss_val

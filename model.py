@@ -233,7 +233,6 @@ class FlashLLaMA(nn.Module):
         past_kv_list: Optional[list] = None,
         use_cache: bool = False
     ):
-        x = x.clone() # Ensure no tensor reuse concerns
         h = self.embedding(x)
         h, new_kv_list = self.decoder(h, past_kv_list=past_kv_list, use_cache=use_cache)
         logits = self.lm_head(h)
