@@ -150,7 +150,7 @@ class GroupedQueryAttention(nn.Module):
             q, k_expanded, v_expanded,
             attn_mask=None,
             dropout_p=dropout_p,
-            is_causal= True
+            is_causal= T > 1
         )
         
         attn_out = attn_out.transpose(1, 2).contiguous().view(B, T, -1)
